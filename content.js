@@ -1,3 +1,4 @@
+// ...existing code...
 const dicPath = chrome.runtime.getURL("dict/");
 
 kuromoji.builder({ dicPath: dicPath }).build(function(err, tokenizer) {
@@ -42,27 +43,87 @@ function findAndProcessNovelBody(tokenizer) {
 // 本文の解析と書き換え処理
 function processHonbun(novelHonbun, tokenizer) {
     
-    let processedHtml = '';
-    
-    novelHonbun.childNodes.forEach(node => {
-        if (node.nodeType === 3) { 
-            processedHtml += processText(node.textContent, tokenizer);
-        } else if (node.nodeType === 1) { 
-            if (node.tagName === 'P' || node.tagName === 'DIV' || node.tagName === 'SPAN') {
-                const innerText = node.textContent;
-                const rubyText = processText(innerText, tokenizer);
-                processedHtml += `<${node.tagName.toLowerCase()} class="${node.className}">${rubyText}</${node.tagName.toLowerCase()}>`;
-            } else {
-                processedHtml += node.outerHTML;
+    const walker = document.createTreeWalker(
+        novelHonbun,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+                const parent = node.parentNode;
+                if (!parent) return NodeFilter.FILTER_REJECT;
+                if (parent.closest && parent.closest('script,style')) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
             }
+        }
+    );
+
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    textNodes.forEach(textNode => {
+        const frag = createFragmentFromText(textNode.nodeValue);
+        if (frag.childNodes.length > 0) {
+            textNode.parentNode.replaceChild(frag, textNode);
         }
     });
 
-    if (processedHtml) {
-        novelHonbun.innerHTML = processedHtml;
-        console.log("ルビ振り処理が完了しました。");
-    }
+    // クリックで個別にルビ化（トグル）
+    novelHonbun.addEventListener('click', (e) => {
+        const target = e.target;
+        if (!target.classList || !target.classList.contains('ruby-candidate')) return;
+
+        // 既に ruby を含んでいる場合は元のテキストに戻す
+        const existingRuby = target.querySelector && target.querySelector('ruby');
+        if (existingRuby) {
+            const textNode = document.createTextNode(target.dataset.surface || target.textContent);
+            target.parentNode.replaceChild(textNode, target);
+            return;
+        }
+
+        const surface = target.dataset.surface;
+        if (!surface) return;
+
+        try {
+            const tokens = tokenizer.tokenize(surface);
+            const readings = tokens.map(t => t.reading || t.surface || '').join('');
+            if (!readings) return;
+            const hiragana = katakanaToHiragana(readings);
+            const ruby = document.createElement('ruby');
+            ruby.textContent = surface;
+            const rt = document.createElement('rt');
+            rt.textContent = hiragana;
+            ruby.appendChild(rt);
+
+            target.innerHTML = '';
+            target.appendChild(ruby);
+        } catch (err) {
+            console.error('ルビ取得中にエラー:', err);
+        }
+    }, { once: false });
 }
+
+
+//テキストを分割して漢字列だけをクリック可能なspan要素にする
+function createFragmentFromText(text){
+    const frag = document.createDocumentFragment();
+    const parts = text.split(/([\u4e00-\u9faf]+)/g);
+    parts.forEach(part=>{
+        if(!part) return;
+        if (part.match(/^[\u4e00-\u9faf]+$/)) {
+            const span = document.createElement('span');
+            span.className = 'ruby-candidate';
+            span.dataset.surface = part;
+            span.textContent = part;
+            // スタイルは必要に応じて CSS で調整（例えば拡張機能の content script で追加）
+            frag.appendChild(span);
+        } else {
+            frag.appendChild(document.createTextNode(part));
+        }
+    });
+    return frag;
+}
+
+
 
 // テキストを形態素解析し、ルビ（<ruby>タグ）を挿入する関数
 function processText(text, tokenizer) {
@@ -92,3 +153,4 @@ function katakanaToHiragana(kata) {
         return String.fromCharCode(chr);
     });
 }
+// ...existing code...
