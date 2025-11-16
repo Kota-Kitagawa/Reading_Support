@@ -1,0 +1,18 @@
+{
+    "name": "ルビ振り",
+    "description": "なろう小説の本文に自動で読み仮名（ルビ）を振ります",
+    "version": "1.0",
+    "manifest_version": 3,
+    "content_scripts": [
+        {
+            "matches": ["*://ncode.syosetu.com/*"],
+            "js": ["kuromoji.js","content.js"]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["dict/*"],
+            "matches": ["*://ncode.syosetu.com/*"]
+        }
+    ]
+}   
