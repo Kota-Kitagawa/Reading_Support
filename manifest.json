@@ -1,5 +1,5 @@
 {
-    "name": "ルビ振り",
+    "name": "読み仮名君",
     "description": "なろう小説の本文に自動で読み仮名（ルビ）を振ります",
     "version": "1.0",
     "manifest_version": 3,
