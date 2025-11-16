@@ -1,4 +1,3 @@
-// ...existing code...
 const dicPath = chrome.runtime.getURL("dict/");
 
 kuromoji.builder({ dicPath: dicPath }).build(function(err, tokenizer) {
@@ -67,43 +66,49 @@ function processHonbun(novelHonbun, tokenizer) {
         }
     });
 
-    // クリックで個別にルビ化（トグル）
-    novelHonbun.addEventListener('click', (e) => {
-        const target = e.target;
-        if (!target.classList || !target.classList.contains('ruby-candidate')) return;
+    // クリック／タップで個別にルビ化（トグル）
+    const handler = (e) => handleCandidateActivate(e, tokenizer);
+    novelHonbun.addEventListener('click', handler);
+    novelHonbun.addEventListener('pointerup', handler, { passive: true });
+}
 
-        // 既に ruby を含んでいる場合は元のテキストに戻す
-        const existingRuby = target.querySelector && target.querySelector('ruby');
-        if (existingRuby) {
-            const textNode = document.createTextNode(target.dataset.surface || target.textContent);
-            target.parentNode.replaceChild(textNode, target);
-            return;
-        }
+// 共通ハンドラ：イベントオブジェクトからターゲットを取得して処理
+function handleCandidateActivate(e, tokenizer) {
+    // pointerup/touchend の場合にスクロール等と誤検知しないよう追加条件を入れたい場合はここで判定
+    const target = e.target;
+    if (!target.classList || !target.classList.contains('ruby-candidate')) return;
 
-        const surface = target.dataset.surface;
-        if (!surface) return;
+    // 既に ruby を含んでいる場合は元のテキストに戻す
+    const existingRuby = target.querySelector && target.querySelector('ruby');
+    if (existingRuby) {
+        const textNode = document.createTextNode(target.dataset.surface || target.textContent);
+        target.parentNode.replaceChild(textNode, target);
+        return;
+    }
 
-        try {
-            const tokens = tokenizer.tokenize(surface);
-            const readings = tokens.map(t => t.reading || t.surface || '').join('');
-            if (!readings) return;
-            const hiragana = katakanaToHiragana(readings);
-            const ruby = document.createElement('ruby');
-            ruby.textContent = surface;
-            const rt = document.createElement('rt');
-            rt.textContent = hiragana;
-            ruby.appendChild(rt);
+    const surface = target.dataset.surface;
+    if (!surface) return;
 
-            target.innerHTML = '';
-            target.appendChild(ruby);
-        } catch (err) {
-            console.error('ルビ取得中にエラー:', err);
-        }
-    }, { once: false });
+    try {
+        const tokens = tokenizer.tokenize(surface);
+        const readings = tokens.map(t => t.reading || t.surface || '').join('');
+        if (!readings) return;
+        const hiragana = katakanaToHiragana(readings);
+        const ruby = document.createElement('ruby');
+        ruby.textContent = surface;
+        const rt = document.createElement('rt');
+        rt.textContent = hiragana;
+        ruby.appendChild(rt);
+
+        target.innerHTML = '';
+        target.appendChild(ruby);
+    } catch (err) {
+        console.error('ルビ取得中にエラー:', err);
+    }
 }
 
 
-//テキストを分割して漢字列だけをクリック可能なspan要素にする
+// テキストを分割して漢字列だけをクリック可能なspan要素にする
 function createFragmentFromText(text){
     const frag = document.createDocumentFragment();
     const parts = text.split(/([\u4e00-\u9faf]+)/g);
@@ -124,8 +129,7 @@ function createFragmentFromText(text){
 }
 
 
-
-// テキストを形態素解析し、ルビ（<ruby>タグ）を挿入する関数
+// テキストを形態素解析し、ルビ（<ruby>タグ）を挿入する関数（未使用だが保留）
 function processText(text, tokenizer) {
     if (!text || text.trim() === '') return text;
 
@@ -146,6 +150,7 @@ function processText(text, tokenizer) {
 
     return resultHtml;
 }
+
 // カタカナをひらがなに変換する関数
 function katakanaToHiragana(kata) {
     return kata.replace(/[\u30a1-\u30f6]/g, function(match) {
@@ -153,4 +158,3 @@ function katakanaToHiragana(kata) {
         return String.fromCharCode(chr);
     });
 }
-// ...existing code...
